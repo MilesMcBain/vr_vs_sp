@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>GIS primitives</title>
+    <meta name="description" content="GIS primitives">
+    <script src="https://aframe.io/releases/0.7.1/aframe.min.js"></script>
+    <script src="//cdn.rawgit.com/donmccurdy/aframe-extras/v3.13.1/dist/aframe-extras.loaders.js"></script>
+    <script src="//cdn.rawgit.com/donmccurdy/aframe-extras/v3.13.1/dist/aframe-extras.controls.js"></script>
+  </head>
+  <body>
+    <a-scene>
+      <a-assets>
+      </a-assets>
+
+      <a-camera universal-controls = "fly: true; movementEasingY: 15"></a-camera>
+      <a-entity position="0 20 0" light="intensity:0.80;type:point"></a-entity>
+
+      <!-- Primitives. -->
+      <a-entity json-model="src: ./test_carolina.json" position="0 0 -4" rotation="-90 0 0" scale="10 10 10"></a-entity>
+      
+    </a-scene>
+  </body>
+</html>

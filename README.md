@@ -1,2 +1,3 @@
 # vr_vs_sp
-Spatial meets VR with a little help from R
+An investigation into AFrame WebVR as a sandbox for viewing and exploring generalised spatial data forms created by `hypertidy`.
+
