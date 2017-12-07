@@ -1,9 +1,9 @@
 af_render <- function(scene_title, object){
 
-  json_object <- jsonlite::read_json(object)
   template <- readLines(system.file("templates/basic.html", package="aftool"))
   template_args <- new.env()
   template_args$title <- scene_title
+  template_args$file <- object
   af_html <- purrr::map(template, ~stringr::str_interp(., template_args))
 
   vr_app <- list(
@@ -15,14 +15,18 @@ af_render <- function(scene_title, object){
         ),
         body = paste0(af_html, collapse = "\r\n")
       )
-    },
-    on
+   }
   )
 
   httpuv::runServer(host = "0.0.0.0",
                     port = 8080,
                     app = vr_app)
+
+  # Create handler router for VR app
+
+
+  # Create VR app
+
 }
 
 
-af_render("North Carolina", "./tests/testthat/test_carolina.json")
