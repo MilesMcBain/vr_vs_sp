@@ -6,31 +6,31 @@ af_render <- function(scene_title, object){
   template_args$file <- object
   af_html <- purrr::map(template, ~stringr::str_interp(., template_args))
 
-  # Create request router for VR app
-  request_router <- routr::Route$new()
-
   # Handler for app root
-  handle_root <- function(request, response, keys, ...) {
-    response$status <- 200L
-    response$type <- 'html'
-    response$body <- paste0(af_html, collapse = "\r\n")
-    return(FALSE)
-  }
+  root_route <- Route$new()
+  root_route$add_handler('get', "/",
+    function(request, response, keys, ...) {
+      response$status <- 200L
+      response$type <- 'html'
+      response$body <- paste0(af_html, collapse = "\r\n")
+      return(FALSE)
+    }
+  )
 
   # Handler for object JSON file
-  handle_object <- function(request, response, keys, ...){
-    response$status <- 200L
-    response$type <- "json"
-    response$body <- readr::read_lines(object)
-  }
-
-  # Attach handlers
-  request_router$add_handler('get', "/", handle_root)
-  request_router$add_handler('get', gsub(pattern = "^\\.",replacement = "", object), handle_object)
+  object_route <- Route$new()
+  object_route$add_handler('get', "/config.json",
+    function(request, response, keys, ...){
+      response$status <- 200L
+      response$type <- "json"
+      response$body <- '{"a": 1}'
+    }
+  )
 
   # Create Route Stack
   routr_stack <- routr::RouteStack$new()
-  routr_stack$add_route(request_router)
+  routr_stack$add_route(root_route, "root")
+  routr_stack$add_route(object_route, "object")
 
   # Create VR app
   app <- fiery::Fire$new()
