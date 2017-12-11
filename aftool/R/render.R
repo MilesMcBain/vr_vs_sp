@@ -3,11 +3,10 @@ af_render <- function(scene_title, object){
   template <- readLines(system.file("templates/basic.html", package="aftool"))
   template_args <- new.env()
   template_args$title <- scene_title
-  template_args$file <- object
   af_html <- purrr::map(template, ~stringr::str_interp(., template_args))
 
   # Handler for app root
-  root_route <- Route$new()
+  root_route <- routr::Route$new()
   root_route$add_handler('get', "/",
     function(request, response, keys, ...) {
       response$status <- 200L
@@ -18,12 +17,13 @@ af_render <- function(scene_title, object){
   )
 
   # Handler for object JSON file
-  object_route <- Route$new()
-  object_route$add_handler('get', "/config.json",
+  object_route <- routr::Route$new()
+  object_route$add_handler('get', "_object.json",
     function(request, response, keys, ...){
       response$status <- 200L
       response$type <- "json"
-      response$body <- '{"a": 1}'
+      response$body <- readLines(object)
+      return(FALSE)
     }
   )
 
