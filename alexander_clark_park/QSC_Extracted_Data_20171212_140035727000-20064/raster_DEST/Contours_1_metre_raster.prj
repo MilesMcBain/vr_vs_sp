@@ -1,0 +1,9 @@
+Projection    GEOGRAPHIC
+Spheroid      GRS80
+Zunits        
+Units         DD
+Xshift        0.000000
+Yshift        0.000000
+Parameters
+6378137.000000
+6356752.314245

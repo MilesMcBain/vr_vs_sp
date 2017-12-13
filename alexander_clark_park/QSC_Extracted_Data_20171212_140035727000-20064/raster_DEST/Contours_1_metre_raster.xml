@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+	<coordinateSystem>
+		<name>Latitude / Longitude</name>
+		<datum>World Geodetic 1984 (WGS84)</datum>
+		<system>Latitude / Longitude</system>
+		<unit>Degree</unit>
+		<majorAxis>6.378137000000000000000000e+006</majorAxis>
+		<eccentricity>8.181919084262148600000000e-002</eccentricity>
+		<centerX>0.000000000000000000000000e+000</centerX>
+		<centerY>0.000000000000000000000000e+000</centerY>
+		<centerZ>0.000000000000000000000000e+000</centerZ>
+		<rotationX>0.000000000000000000000000e+000</rotationX>
+		<rotationY>0.000000000000000000000000e+000</rotationY>
+		<rotationZ>0.000000000000000000000000e+000</rotationZ>
+		<scaleAdjustment>0.000000000000000000000000e+000</scaleAdjustment>
+		<scaleX>1.000000000000000000000000e+000</scaleX>
+		<localScaleX>1.248256999999521700000000e-005</localScaleX>
+		<scaleY>1.000000000000000000000000e+000</scaleY>
+		<localScaleY>1.248256999999998900000000e-005</localScaleY>
+		<falseEasting>0.000000000000000000000000e+000</falseEasting>
+		<localOffsetX>1.531851830930000900000000e+002</localOffsetX>
+		<falseNorthing>0.000000000000000000000000e+000</falseNorthing>
+		<localOffsetY>-2.770532844599995300000000e+001</localOffsetY>
+	</coordinateSystem>
+	<surface>
+		<channels>1</channels>
+		<cx>741</cx>
+		<cy>690</cy>
+		<type>Float32</type>
+		<void>1.17549e-038</void>
+	</surface>
+</data>
+
