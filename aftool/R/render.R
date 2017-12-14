@@ -1,8 +1,9 @@
-af_render <- function(scene_title, object){
+af_render <- function(scene_title, object, scale){
 
   template <- readLines(system.file("templates/basic.html", package="aftool"))
   template_args <- new.env()
   template_args$title <- scene_title
+  template_args$scale <- scale
   af_html <- purrr::map(template, ~stringr::str_interp(., template_args))
 
   # Handler for app root

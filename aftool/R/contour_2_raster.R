@@ -14,27 +14,27 @@ contour_2_raster <- function(contour_sf, raster_attribute, n_samples = 10000, nr
 x <- contour_sf
 
 ## L1, L2 are the holes, and islands respectively
-coords <- 
-  sf::st_coordinates(x) %>% 
-  tibble::as_tibble() %>%  
+coords <-
+  sf::st_coordinates(x) %>%
+  tibble::as_tibble() %>%
   dplyr::sample_n(n_samples)
 
-xy <- 
-  coords %>% 
-  dplyr::rename(x = X, y = Y) %>% 
+xy <-
+  coords %>%
+  dplyr::rename(x = X, y = Y) %>%
   select(x,y) %>%
   as.matrix()
 
 value <- x[[raster_attribute]][dplyr::pull(coords, L2)]
 
 ## helper function to build a raster from the extent of a set of points
-grid <- irreg::defaultgrid(xy, ncol = ncol, nrow = nrow)
+grid <- guerrilla::defaultgrid(xy, ncol = ncol, nrow = nrow)
 
 ## this function triangulates the points (no account is taken of the lines)
 ## and uses barycentric interpolation on triangles to interpolate value
 ## (this is what griddata in Matlab does, default method)
-trigrid <- irreg::tri_fun(xy,
-                   value, 
+trigrid <- guerrilla::tri_fun(xy,
+                   value,
                    grid)
 trigrid
 }
