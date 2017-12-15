@@ -36,15 +36,24 @@ plot(acp_extent_mesh)
 
 # Determine the face vertex colours
 # Use the height raster for now. Replace with vegetation raster later.
-terrain_pal_256 <- t(col2rgb(terrain.colors(256)))[256:1,]/255
-
+terrain_pal_256 <- 
+  terrain.colors(256) %>%
+  rev() %>%
+  map(~col2rgb(.)) %>%
+  map(~rgb(red = .[1], green = .[2], blue = .[3], maxColorValue = 255)) %>%
+  unlist() %>%
+  gsub(pattern = "#", replacement = "0x", x = .) %>%
+  as.numeric()
+  
 # Colours are indexed so we just need to assign the vertex index to the colour: 0 - 255
+vegetation_raster <- raster("alexander_clark_park/slatsfpc2013/")
+
 acp_extent_mesh$v <-
   acp_extent_mesh$v %>%
-  mutate(value = raster::extract(acp_elev_raster,
+  mutate(value = raster::extract(vegetation_raster,
                   cbind(acp_extent_mesh$v$x_, acp_extent_mesh$v$y_), method = "bilinear")) %>%
   tidyr::fill(value) %>%
-  mutate(colour = round( (value/10)*255 ) )
+  mutate(colour = round( ((value - 100)/79)*255 ) )
 
 
 
@@ -90,9 +99,6 @@ normals_3js <- ""
 
 colors_3js <- 
   terrain_pal_256 %>% 
-  as_tibble() %>%
-  transpose() %>%
-  map( ~paste0(., collapse=",")) %>%
   paste0( ., collapse=", ")
 
 uvs_3js <- ""
