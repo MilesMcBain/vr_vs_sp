@@ -60,7 +60,7 @@ acp_extent_mesh$v <-
 river_shape_file <- read_sf("alexander_clark_park/waterways/WaterwaysACP.shp")
 
 # Add a water colour to our terrain colour palette
-terrain_pal_257 <- c(terrain_pal_256, '0x6e96a0')
+terrain_pal_257 <- c(terrain_pal_256, as.numeric('0x7cccba'))
 
 acp_extent_mesh$v <- 
   acp_extent_mesh$v %>% 
