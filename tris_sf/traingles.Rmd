@@ -6,6 +6,7 @@ output: html_document
 
 ```{r}
 library(sf)
+library(tidyverse)
 nc <- read_sf(system.file("shape/nc.shp", package="sf"))
 ```
 
@@ -14,26 +15,29 @@ nc <- read_sf(system.file("shape/nc.shp", package="sf"))
 From : https://cran.r-project.org/web/packages/sf/vignettes/sf1.html
 
 ```{r}
-p1 <- rbind(c(0,0), c(1,0), c(3,2), c(2,4), c(1,4), c(0,0))
-p2 <- rbind(c(1,1), c(1,2), c(2,2), c(1,1))
-pol <-st_polygon(list(p1,p2))
-p3 <- rbind(c(3,0), c(4,0), c(4,1), c(3,1), c(3,0))
-p4 <- rbind(c(3.3,0.3), c(3.8,0.3), c(3.8,0.8), c(3.3,0.8), c(3.3,0.3))[5:1,]
-p5 <- rbind(c(3,3), c(4,2), c(4,3), c(3,3))
-p6 <- rbind(c(3,1), c(3.5,2), c(4,1), c(3,1))
-(mpol <- st_multipolygon(list(list(p1,p2), list(p3,p4), list(p5))))
-my_sf <- st_sfc(mpol, 
-                st_multipolygon(list(list(p6)))
-my_pol <- st_sfc(pol,
-                 st_polygon(list(p6)))
-)
+p1 <- rbind(c(0,0), c(1,0), c(1,1), c(0,1), c(0,0)) # block
+p2 <- rbind(c(0.25,0.25), c(0.75,0.25), c(0.75,0.75), c(0.25,0.75), c(0.25,0.25)) # hole
+p3 <- rbind(c(0,1), c(1,1), c(1,2), c(0,2), c(0,1)) # block
+p4 <- rbind(c(0.25,1.25), c(0.75,1.25), c(0.75,1.75), c(0.25,1.75), c(0.25,1.25)) # hole
+p5 <- rbind(c(2,1.1), c(3,1.1), c(3,2), c(2,2), c(2, 1.1)) # mini-block
+p6 <- rbind(c(2.25,1.25), c(2.75,1.25), c(2.75,1.75), c(2.25,1.75), c(2.25,1.25)) # hole
+p7 <- rbind(c(2,0), c(3,0), c(3,1), c(2,1), c(2,0)) # block
+
+mpol_1 <- st_multipolygon(list(list(p1,p2), list(p3,p4)))
+mpol_2 <- st_multipolygon(list(list(p5,p6), list(p7)))
+my_sf <- st_sfc(mpol_1, 
+                mpol_2)
 ```
+
 # Plot the fake data
+
 ```{r}
-plot(mpol)
+plot(my_sf)
 ```
+
 # Combining
 # st_multipolygon
+
 ```{r}
 holes <- my_sf %>%
   st_union() %>%
@@ -54,32 +58,105 @@ my_sf %>%
   map(function(a_polygon){
     island <- a_polygon[1] 
     holes <- a_polygon[-1]
+     
+    # For RTRiangle we need:
+    # P - A list of all unique vertices
+    # PB - A vector the same length as P indicating if vertex is on boundary
+    # PA - not required but maybe be useful for rastersation. Probably want explicit control.
+    # S - a list of segments need boundary segments and hole segments
+    #     Uses verex indicie in P.
+    # SB - a vector the same length as S indicating boundaries
+    # H - a vector of holes points in segments
+
+    # H
     hole_centroids <- map(holes, ~st_centroid(st_polygon(list(.))))
     hole_centroids
 
-    # the island vertexes needs to be segments that are on the boundary
+    # S
+    
+    
+
       
 
   })   
+
+# DEV
 unioned_df <-  
   my_sf %>%
   st_union() %>%
   flatten()
 
-st_centroid(st_polygon(unioned_df[[1]][[1]]))
-    
-    a_polygon <- unioned_df[[1]]
-    island <- a_polygon[1] 
-    holes <- a_polygon[-1]
-    hole_centroids <- map(holes, ~st_centroid(st_polygon(list(.))))
-    hole_centroids[[1]]
-    all_holes_stacked <- reduce(holes, rbind)
-    
-    island[, 3]
-```
-# st_polygon
-```{r}
-my_pol %>%
-  st_union()
+  a_polygon <- unioned_df[[2]]
+  island <- a_polygon[1] 
+  holes <- a_polygon[-1]
+  hole_centroids <- map(holes, ~st_centroid(st_polygon(list(.)))) %>%
+                    map(as.matrix) %>%
+                    do.call(rbind, .)
+ 
+  # Tag and stack vertices
+  # Build island portion
+  island_df <- as_tibble(island[[1]]) %>%
+  rename(x = V1, y = V2) %>%
+  mutate(type = "island",
+        group = 1) %>%
+  list()
+  
+  # Build holes portion
+  # if(length(holes) > 0) 
+  hole_groups <- seq_along(holes) + 1 # group 1 is already taken for island
+  holes_df_list <-
+    pmap(list(holes, hole_groups), 
+    function(a_hole, group_id){
+      hole_df <- as_tibble(a_hole) %>%
+      rename(x = V1, y = V2) %>%
+      mutate(type =  "hole",
+             group = group_id)
+      hole_df
+    })
 
+  vertex_list <- 
+    bind_rows(c(holes_df_list, island_df))
+
+  unique_vertices <-
+    vertex_list %>%
+    select(x, y) %>%
+    unique() %>%
+    mutate(id = seq_along(x))
+   
+  vertex_list <-
+    left_join(vertex_list, unique_vertices, by = c("x","y")) %>%
+    group_by(group) %>%
+    mutate(segment_start = id,
+           segment_end = lead(id),
+           boundary_ind = if_else(type == "island", 1, 0)) %>%
+    drop_na() %>%
+    ungroup()
+    
+    rtri_args <- 
+    list(
+      P = vertex_list %>%
+         select(x, y) %>%
+         as.matrix(),   
+      PB = pull(vertex_list, boundary_ind),
+      S = vertex_list %>%
+          select(segment_start, segment_end) %>%
+          as.matrix(),
+      SB = pull(vertex_list, boundary_ind),
+      H = hole_centroids
+      )
+
+rt_pslg <- do.call(RTriangle::pslg, rtri_args)
+
+rt_triangles <- RTriangle::triangulate(rt_pslg, a = 0.008)
+plot(rt_triangles)
+
+library(sfdct)
+ct_triangulate(my_sf %>% st_union() %>% st_geometry(), a = 0.008 )[[1]] %>% plot(col = "white")
+
+library(sf)
+library(sfdct)
+nc <- read_sf(system.file("shape/nc.shp", package="sf"), quiet = TRUE)
+nc_triangles <- ct_triangulate(nc)
+
+plot(st_geometry(nc_triangles),   col = viridisLite::viridis(nrow(nc_triangles)))
 ```
