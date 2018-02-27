@@ -2,6 +2,7 @@ library(sf)
 library(raster)
 library(anglr) ## devtools::install_github("hypertidy/anglr")
 library(rgl)
+library(tidyverse)
 
 # read shape file:
 acp <- read_sf("./alexander_clark_park/QSC_Extracted_Data_20171212_140035727000-20064/Contours_1_metre.shp")
@@ -31,24 +32,47 @@ acp_extent_mesh$v$z_ <-
 acp_extent_mesh$v <- tidyr::fill(acp_extent_mesh$v, z_)
 acp_extent_mesh$v$z_
 
-rgl.clear()
-plot(acp_extent_mesh)
+#rgl.clear()
+#plot(acp_extent_mesh)
 
 # Determine the face vertex colours
-# Use the height raster for now. Replace with vegetation raster later.
-terrain_pal_256 <- t(col2rgb(terrain.colors(256)))[256:1,]/255
-
+# Use the vegetation raster later.
+terrain_pal_256 <- 
+  terrain.colors(256) %>%
+  rev() %>%
+  map(~col2rgb(.)) %>%
+  map(~rgb(red = .[1], green = .[2], blue = .[3], maxColorValue = 255)) %>%
+  unlist() %>%
+  gsub(pattern = "#", replacement = "0x", x = .) %>%
+  as.numeric()
+  
 # Colours are indexed so we just need to assign the vertex index to the colour: 0 - 255
+vegetation_raster <- raster("alexander_clark_park/slatsfpc2013/")
+
 acp_extent_mesh$v <-
   acp_extent_mesh$v %>%
-  mutate(value = raster::extract(acp_elev_raster,
+  mutate(value = raster::extract(vegetation_raster,
                   cbind(acp_extent_mesh$v$x_, acp_extent_mesh$v$y_), method = "bilinear")) %>%
   tidyr::fill(value) %>%
-  mutate(colour = round( (value/10)*255 ) )
+  mutate(colour = round( ((value - 100)/79)*255 ) )
+
+# There's also a river which we have a shapefile for.
+river_shape_file <- read_sf("alexander_clark_park/waterways/WaterwaysACP.shp")
+
+# Add a water colour to our terrain colour palette
+terrain_pal_257 <- c(terrain_pal_256, as.numeric('0x7cccba'))
+
+acp_extent_mesh$v <- 
+  acp_extent_mesh$v %>% 
+  mutate(
+    water = point_in_sf(x = x_, y_, river_shape_file),
+    colour = if_else(water, 256 ,colour) # If the vertex is in water set the colour to something the last colour in palette (water)
+  )
 
 
 
-library(tidyverse)
+
+# Write JSON
 vertices <-
    acp_extent_mesh$v %>%
    mutate(v_ind = seq(0, n()-1)) %>%
@@ -89,10 +113,7 @@ vertices_3js <-
 normals_3js <- ""
 
 colors_3js <- 
-  terrain_pal_256 %>% 
-  as_tibble() %>%
-  transpose() %>%
-  map( ~paste0(., collapse=",")) %>%
+  terrain_pal_257 %>% 
   paste0( ., collapse=", ")
 
 uvs_3js <- ""
