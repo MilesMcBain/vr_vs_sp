@@ -7,6 +7,7 @@ output: html_document
 ```{r}
 library(sf)
 library(tidyverse)
+library(RTriangle)
 nc <- read_sf(system.file("shape/nc.shp", package="sf"))
 ```
 
@@ -35,6 +36,7 @@ my_sf <- st_sfc(mpol_1,
 plot(my_sf)
 ```
 
+# A function to Triangulate
 
 ```{r}     
 sf_to_tri_mesh <- function(a_mulitpoly_sf, tri_area = NULL){
@@ -139,6 +141,8 @@ sf_to_tri_mesh <- function(a_mulitpoly_sf, tri_area = NULL){
   rt_triangles <- RTriangle::triangulate(rt_pslg, a = tri_area)
 }
 
+# Triangulation Results
+
 unioned_df <-  
   my_sf %>%
   st_union()
@@ -148,22 +152,43 @@ nc_unioned_df <-
   st_geometry() %>%
   st_combine()
 
-sf_to_tri_mesh(unioned_df, 0.008)
-plot(.Last.value)    
-
-sf_to_tri_mesh(nc_unioned_df)
-plot(.Last.value)
-  
+plot(sf_to_tri_mesh(unioned_df, 0.008))
     
 
+plot(sf_to_tri_mesh(nc_unioned_df))
 
+```  
+
+# Alternatives
+
+
+```{r}
 library(sfdct)
 ct_triangulate(my_sf %>% st_union() %>% st_geometry(), a = 0.008 )[[1]] %>% plot(col = "white")
-
-library(sf)
-library(sfdct)
-nc <- read_sf(system.file("shape/nc.shp", package="sf"), quiet = TRUE)
 nc_triangles <- ct_triangulate(nc)
-
 plot(st_geometry(nc_triangles),   col = viridisLite::viridis(nrow(nc_triangles)))
+```
+
+The same underlying algorithm. The issue is that these are not in a 3D ready format. The default output is actually better.
+
+# Making the mesh 3d 
+The `elevatr` package can fetch elevation data. At present the download speeds for it's raster tile sources are quite slow. 
+They're faster for zoomed-out tiles,
+but these are not great for 'human scale' VR. There are a lot of public datasets available, but none with R package interfaces.
+The standard also seems to be you need to make an account to download these. I have found 1m and 5m LIDAR and elevation model data
+for sites of interest from my local state [geoscience body](http://qldspatial.information.qld.gov.au/catalogue/custom/index.page). 
+
+Other good options: 
+
+  * [British Oceanographic Data Centre](https://www.bodc.ac.uk/data/hosted_data_systems/gebco_gridded_bathymetry_data/)
+  * [Open Topography](http://opentopo.sdsc.edu/datasets)
+  * More [here](http://gisgeography.com/free-global-dem-data-sources/).
+
+```{r}
+library(elevatr)
+library(sp)
+
+
+# Choosing the right z is important: https://mapzen.com/documentation/terrain-tiles/data-sources/#what-is-the-ground-resolution
+nc_raster <- elevatr::get_elev_raster(as(nc, 'Spatial'), z = 10, src = "aws")
 ```
