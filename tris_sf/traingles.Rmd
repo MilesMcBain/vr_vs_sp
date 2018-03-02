@@ -6,6 +6,7 @@ output: html_document
 
 ```{r}
 library(sf)
+library(raster)
 library(tidyverse)
 library(RTriangle)
 nc <- read_sf(system.file("shape/nc.shp", package="sf"))
@@ -184,11 +185,53 @@ Other good options:
   * [Open Topography](http://opentopo.sdsc.edu/datasets)
   * More [here](http://gisgeography.com/free-global-dem-data-sources/).
 
+Here I've used the an extract of the BDOC GEBCO grid, which has a permissive license. The extract contains elevation data at a 30m resolution for the United States. 
+
 ```{r}
-library(elevatr)
-library(sp)
+library(sf)
+library(ncdf4)
+library(raster)
+#bodc_data_file <- "./data/GEBCO_2014_2D_-140.1818_22.6909_-50.9455_58.2545.nc"
+#bodc_data <- nc_open(bodc_data_file)
+#us_lat <- ncvar_get(bodc_data, "lat")
+#us_lon <- ncvar_get(bodc_data, "lon")
+#us_elev <- ncvar_get(bodc_data, "elevation")
+
+#library(raster)
+#dim(us_elev)
+#dim(us_lat)
+#dim(us_lon)
+
+# make a raster
+#elev_raster <- raster(ncol = dim(us_lon),
+#                      nrow = dim(us_lat),
+#                      xmn = min(us_lon),
+#                      xmx = max(us_lon),
+#                      ymn = min(us_lat),
+#                      ymx = max(us_lat))
+
+#values(elev_raster) <- t(us_elev)[1:ncell(elev_raster)]
+
+ot_raster <- raster("./data/output_alos.tif")
+
+# looks whacked!
 
 
-# Choosing the right z is important: https://mapzen.com/documentation/terrain-tiles/data-sources/#what-is-the-ground-resolution
-nc_raster <- elevatr::get_elev_raster(as(nc, 'Spatial'), z = 10, src = "aws")
+nc_trimesh <- 
+  nc %>%
+  st_geometry() %>%
+  st_union() %>%
+  sf_to_tri_mesh(0.08)
+```
+
+```{r}
+z <- raster::extract(ot_raster, nc_trimesh$P)/1000
+nc_trimesh$P <- cbind(nc_trimesh$P, z) 
+
+
+library(rgl)
+wire3d(
+  tmesh3d(vertices = t(asHomogeneous(nc_trimesh$P)), indices = array(t(nc_trimesh$T)))
+)
+# Okay but got some shitty values.
 ```
