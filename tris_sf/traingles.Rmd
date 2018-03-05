@@ -191,47 +191,43 @@ Here I've used the an extract of the BDOC GEBCO grid, which has a permissive lic
 library(sf)
 library(ncdf4)
 library(raster)
-#bodc_data_file <- "./data/GEBCO_2014_2D_-140.1818_22.6909_-50.9455_58.2545.nc"
-#bodc_data <- nc_open(bodc_data_file)
-#us_lat <- ncvar_get(bodc_data, "lat")
-#us_lon <- ncvar_get(bodc_data, "lon")
-#us_elev <- ncvar_get(bodc_data, "elevation")
 
-#library(raster)
-#dim(us_elev)
-#dim(us_lat)
-#dim(us_lon)
+gebco_raster <- raster("./data/GEBCO_2014_2D_-140.1818_22.6909_-50.9455_58.2545.nc")
+nc <- st_transform(nc, crs(gebco_raster)@projargs) # Transform our polygons to same CRS as raster
 
-# make a raster
-#elev_raster <- raster(ncol = dim(us_lon),
-#                      nrow = dim(us_lat),
-#                      xmn = min(us_lon),
-#                      xmx = max(us_lon),
-#                      ymn = min(us_lat),
-#                      ymx = max(us_lat))
 
-#values(elev_raster) <- t(us_elev)[1:ncell(elev_raster)]
-
-ot_raster <- raster("./data/output_alos.tif")
-
-# looks whacked!
-
+# Determine max area setting for around 3000 tris
+bb_area <- function(sf_obj){
+  bbox <- st_bbox(sf_obj)
+  area <- (bbox[3] - bbox[1]) * (bbox[4] - bbox[2])
+  area
+}
+bb_area(nc) / 3000 #0.008
 
 nc_trimesh <- 
   nc %>%
   st_geometry() %>%
   st_union() %>%
-  sf_to_tri_mesh(0.08)
-```
+  sf_to_tri_mesh(0.008)
 
-```{r}
-z <- raster::extract(ot_raster, nc_trimesh$P)/1000
-nc_trimesh$P <- cbind(nc_trimesh$P, z) 
+z <- raster::extract(gebco_raster, nc_trimesh$P[,1:2])
 
+# transform to metres
+nc_verts <- st_sfc(st_multipoint(nc_trimesh$P, dim = "XY"))
+st_crs(nc_verts)  <- st_crs(nc)
+nc_verts <- st_transform(nc_verts, crs = "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+nc_trimesh$P <- cbind(as(nc_verts[[1]], 'matrix'), z)
 
 library(rgl)
 wire3d(
   tmesh3d(vertices = t(asHomogeneous(nc_trimesh$P)), indices = array(t(nc_trimesh$T)))
 )
-# Okay but got some shitty values.
+# Okay but now from this perspective it is basically completely flat.
+
+st_transform(nc, "+proj=longlat +datum=WGS84") %>%
+as('Spatial') %>%
+plot()
+
+plot(gebco_raster)
 ```
+
