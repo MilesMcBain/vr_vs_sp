@@ -195,7 +195,18 @@ library(raster)
 gebco_raster <- raster("./data/GEBCO_2014_2D_-140.1818_22.6909_-50.9455_58.2545.nc")
 nc <- st_transform(nc, crs(gebco_raster)@projargs) # Transform our polygons to same CRS as raster
 
+# Sanity check. Do these overlap?
+plot(gebco_raster)
+st_transform(nc, "+proj=longlat +datum=WGS84") %>%
+as('Spatial') %>%
+plot(add = TRUE)
+```
 
+# Making the Mesh
+
+First we dertermine roughly how big we want the triangles to be, by working back from a sensible number. 3000 sounds good.
+
+```{r}
 # Determine max area setting for around 3000 tris
 bb_area <- function(sf_obj){
   bbox <- st_bbox(sf_obj)
@@ -203,7 +214,11 @@ bb_area <- function(sf_obj){
   area
 }
 bb_area(nc) / 3000 #0.008
+```
 
+Now we traingulate and transform the triangulation vertices to metres, so they are on the same scale as the elevation data from the GEBCO raster.
+
+```{r}
 nc_trimesh <- 
   nc %>%
   st_geometry() %>%
@@ -219,15 +234,9 @@ nc_verts <- st_transform(nc_verts, crs = "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat
 nc_trimesh$P <- cbind(as(nc_verts[[1]], 'matrix'), z)
 
 library(rgl)
-wire3d(
-  tmesh3d(vertices = t(asHomogeneous(nc_trimesh$P)), indices = array(t(nc_trimesh$T)))
-)
+  wire3d(
+    tmesh3d(vertices = t(asHomogeneous(nc_trimesh$P)), indices = array(t(nc_trimesh$T)))
+  )
+rglwidget()
 # Okay but now from this perspective it is basically completely flat.
-
-st_transform(nc, "+proj=longlat +datum=WGS84") %>%
-as('Spatial') %>%
-plot()
-
-plot(gebco_raster)
 ```
-
