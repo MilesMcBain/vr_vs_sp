@@ -1,0 +1,40 @@
+---
+title: "Meshing Uluru"
+author: "Miles McBain"
+output: html_document
+---
+
+# Meshing Uluru
+The akward scale of the North Carolina dataset is probably atypical of what we will be exporting to VR. Here I'll look at meshing Uluru, which should be more suitable.
+
+Data sources: 
+[Australian Digital Elevation Model 5m Lidar NT](http://pid.geoscience.gov.au/dataset/89644)
+[Uluru / Ayers Rock 1:250 000 GIS Dataset](http://pid.geoscience.gov.au/dataset/89644)
+
+
+```{r}
+library(tidyverse)
+library(sf)
+uluru_bbox <- st_bbox(c(ymin = -25.36109, ymax = -25.32889, xmax = 131.0747, xmin = 131.0117), crs = st_crs("+proj=longlat +ellps=GRS80 +no_defs"))
+uluru_shape <- read_sf("/home/miles/data/uluru/GEODATA_TOPO250K_TILE_DATA/G5208/Shapefiles/Elevation")
+uluru_contours <- 
+    filter(uluru_shape, as.vector(st_contains(st_as_sfc(uluru_bbox), uluru_shape$geometry, sparse = FALSE)))
+
+# Those interpolated features are kind of weird.
+plot(uluru_contours["FEATTYPE"])
+
+# What if we just got the outline
+uluru_contours %>%
+  st_geometry() %>%
+  map(st_polygonize) %>% #This needs to change. Probably just join this LINESTRING back on itself to make a POLYGON
+  .[[3]] %>%
+  .[1] %>%
+  st_multipolygon() %>%
+  st_sfc(crs=st_crs(uluru_contours)) %>%
+  sf_to_tri_mesh(0.0000001) %>%
+  plot()
+  
+
+
+```
+

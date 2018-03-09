@@ -192,6 +192,9 @@ library(sf)
 library(ncdf4)
 library(raster)
 
+if(!file.exists("./data/GEBCO_2014_2D_-140.1818_22.6909_-50.9455_58.2545.nc")) {
+  source("./data/fetch_data_file_12J-285aSC4taBmGVr6F0xZpO_H5pBNpo.R")
+}
 gebco_raster <- raster("./data/GEBCO_2014_2D_-140.1818_22.6909_-50.9455_58.2545.nc")
 nc <- st_transform(nc, crs(gebco_raster)@projargs) # Transform our polygons to same CRS as raster
 
