@@ -8,9 +8,8 @@ output: html_document
 The akward scale of the North Carolina dataset is probably atypical of what we will be exporting to VR. Here I'll look at meshing Uluru, which should be more suitable.
 
 Data sources: 
-[Australian Digital Elevation Model 5m Lidar NT](http://pid.geoscience.gov.au/dataset/89644)
 [Uluru / Ayers Rock 1:250 000 GIS Dataset](http://pid.geoscience.gov.au/dataset/89644)
-
+[ELVIS - Elevation information system](http://www.ga.gov.au/elvis/)
 
 ```{r}
 library(tidyverse)
@@ -24,17 +23,85 @@ uluru_contours <-
 plot(uluru_contours["FEATTYPE"])
 
 # What if we just got the outline
-uluru_contours %>%
+
+# Find the outer contour by finding the one with the highest longitude?
+uluru_outline <- 
+  uluru_contours %>%
+  mutate(max_y = map_dbl(geometry, ~max(as.matrix(.)[,1]))) %>% # [,1] gives longitude
+  arrange(desc(max_y)) %>% 
+  filter(row_number() == 1)
+
+uluru_outline_poly <- 
+  uluru_outline %>%
   st_geometry() %>%
-  map(st_polygonize) %>% #This needs to change. Probably just join this LINESTRING back on itself to make a POLYGON
-  .[[3]] %>%
-  .[1] %>%
+  .[[1]] %>%
+  as.matrix() %>%
+  list() %>%
+  list() %>%
   st_multipolygon() %>%
-  st_sfc(crs=st_crs(uluru_contours)) %>%
-  sf_to_tri_mesh(0.0000001) %>%
-  plot()
-  
+  st_sfc()
 
+st_crs(uluru_outline_poly) <- st_crs(uluru_contours)
+uluru_outline_poly <- st_transform(uluru_outline_poly, 
+' +proj=lcc +lat_1=-30 +lat_2=-20 +lat_0=-25 +lon_0=135 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0') #same as raster below
 
+uluru_trimesh <- sf_to_tri_mesh(uluru_outline_poly, 5000)
+plot(uluru_trimesh)
 ```
 
+# Adding Elevation
+Okay so that has worked pretty well. now we try to add some elevation stuff.
+
+We have two approaches: 
+1. Build an elevation raster from the elevation contours.
+2. Use ELVIS 1 Second Shuttle Elevation data
+
+## Use ELVIS 1 Second elevation raster
+This has the slightly different crs. So I made it the same via `st_transform` in the previous step.
+
+```{r}
+nt_raster <- raster("/home/miles/data/uluru/CLIP_7460862/CLIP.tif")
+
+# sanity check - do these overlap?
+plot(nt_raster)
+plot(as(uluru_outline_poly, 'Spatial'), add = TRUE)
+# looks okay but doe it fit?
+
+uluru_elev <- raster::extract(nt_raster, uluru_trimesh$P[,1:2])
+uluru_trimesh$P <- cbind(uluru_trimesh$P, uluru_elev)
+
+library(rgl)
+  wire3d(
+    tmesh3d(vertices = t(asHomogeneous(uluru_trimesh$P)), indices = array(t(uluru_trimesh$T)))
+  )
+rglwidget()
+```
+The front side looks a bit whacky. Comparse this to elevation of a square section.
+
+```{r}
+bbox_to_multipoly <- function(a_bbox, crs){
+  mpoly <- st_sfc(st_multipolygon(
+  list(list(
+    rbind(
+      c(a_bbox$xmin, a_bbox$ymin),
+      c(a_bbox$xmax, a_bbox$ymin),
+      c(a_bbox$xmax, a_bbox$ymax),
+      c(a_bbox$xmin, a_bbox$ymax),
+      c(a_bbox$xmin, a_bbox$ymin))
+    ))
+  ))
+  st_crs(mpoly) <- crs
+  names(mpoly) <- NULL
+  mpoly
+}
+
+uluru_extent <- 
+  bbox_to_multipoly(uluru_bbox, "+proj=longlat +ellps=GRS80 +no_defs")
+
+ulutu_extent <-
+  st_transform(uluru_extent, 
+    ' +proj=lcc +lat_1=-30 +lat_2=-20 +lat_0=-25 +lon_0=135 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0') # same as raster
+
+uluru_box_trimesh <- sf_to_tri_mesh(uluru_extent, 5500)
+
+```
