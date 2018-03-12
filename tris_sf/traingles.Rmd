@@ -7,8 +7,8 @@ output: html_document
 ```{r}
 library(sf)
 library(raster)
-library(tidyverse)
 library(RTriangle)
+library(tidyverse)
 nc <- read_sf(system.file("shape/nc.shp", package="sf"))
 ```
 
@@ -40,7 +40,7 @@ plot(my_sf)
 # A function to Triangulate
 
 ```{r}     
-sf_to_tri_mesh <- function(a_mulitpoly_sf, tri_area = NULL){
+sf_to_tri_mesh <- function(a_mulitpoly_sf, n_tris = NULL){
   
   if(!is(a_mulitpoly_sf, "sfc_MULTIPOLYGON")){
     stop("sf_to_tri_mesh can only work with sf geometry containing a single MULTIPOLYGON") 
@@ -136,9 +136,19 @@ sf_to_tri_mesh <- function(a_mulitpoly_sf, tri_area = NULL){
       SB = pull(segment_boundary_df, boundary_ind),
       H = if(is.null(hole_centroids)) NA else hole_centroids
       )
+  
+  # Calculate the triangle area to give approx n_tris
+  if (!is.null(n_tris)){
+    bbox <- st_bbox(a_mulitpoly_sf)
+    area <- (bbox[3] - bbox[1]) * (bbox[4] - bbox[2])
+    tri_area <- area/n_tris
+  } else {
+    tri_area <- NULL
+  }
+
 
   rt_pslg <- do.call(RTriangle::pslg, rtri_args)
-
+  
   rt_triangles <- RTriangle::triangulate(rt_pslg, a = tri_area)
 }
 
@@ -153,10 +163,10 @@ nc_unioned_df <-
   st_geometry() %>%
   st_combine()
 
-plot(sf_to_tri_mesh(unioned_df, 0.008))
+plot(sf_to_tri_mesh(unioned_df, n_tris = 1000))
     
 
-plot(sf_to_tri_mesh(nc_unioned_df))
+plot(sf_to_tri_mesh(nc_unioned_df, n_tris = 1000))
 
 ```  
 
@@ -207,17 +217,7 @@ plot(add = TRUE)
 
 # Making the Mesh
 
-First we dertermine roughly how big we want the triangles to be, by working back from a sensible number. 3000 sounds good.
-
-```{r}
-# Determine max area setting for around 3000 tris
-bb_area <- function(sf_obj){
-  bbox <- st_bbox(sf_obj)
-  area <- (bbox[3] - bbox[1]) * (bbox[4] - bbox[2])
-  area
-}
-bb_area(nc) / 3000 #0.008
-```
+Choose a sensible number of triangles for `n_tris`, it's approximate. 3000 sounds good.
 
 Now we traingulate and transform the triangulation vertices to metres, so they are on the same scale as the elevation data from the GEBCO raster.
 
@@ -226,7 +226,7 @@ nc_trimesh <-
   nc %>%
   st_geometry() %>%
   st_union() %>%
-  sf_to_tri_mesh(0.008)
+  sf_to_tri_mesh(1000)
 
 z <- raster::extract(gebco_raster, nc_trimesh$P[,1:2])
 
