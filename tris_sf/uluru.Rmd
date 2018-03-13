@@ -4,6 +4,126 @@ author: "Miles McBain"
 output: html_document
 ---
 
+```{r}
+library(sf)
+library(raster)
+library(tidyverse)
+
+sf_to_tri_mesh <- function(a_mulitpoly_sf, n_tris = NULL){
+  
+  if(!is(a_mulitpoly_sf, "sfc_MULTIPOLYGON")){
+    stop("sf_to_tri_mesh can only work with sf geometry containing a single MULTIPOLYGON") 
+  } 
+  if(length(a_mulitpoly_sf) != 1){
+    stop("Argument geomerty contained more than 1 MULTIPOLYGON. Use st_union() or st_combine()") 
+  }
+
+    # For RTRiangle we need:
+    # P - A list of all unique vertices
+    # PB - A vector the same length as P indicating if vertex is on boundary
+    # PA - not required but maybe be useful for rastersation. Probably want explicit control.
+    # S - a list of segments need boundary segments and hole segments
+    #     Uses verex indicie in P.
+    # SB - a vector the same length as S indicating boundaries
+    # H - a vector of holes points in segments # For RTRiangle we need:
+    # P - A list of all unique vertices
+    # PB - A vector the same length as P indicating if vertex is on boundary
+    # PA - not required but maybe be useful for rastersation. Probably want explicit control.
+    # S - a list of segments need boundary segments and hole segments
+    #     Uses verex indicie in P.
+    # SB - a vector the same length as S indicating boundaries
+    # H - a vector of holes points in segments
+
+  island_list <-
+    map(a_mulitpoly_sf[[1]], ~.[1]) %>% 
+    flatten() %>%
+    map(as_tibble) %>%
+    map(~mutate(., type = "island"))
+  
+  hole_list <-
+    map(a_mulitpoly_sf[[1]], ~.[-1]) %>%
+    flatten() %>%
+    map(as_tibble) %>%
+    map(~mutate(., type = "hole"))
+  
+  all_polys_list <- c(island_list, hole_list)
+  all_polys_list <-
+    pmap(list(all_polys_list, seq_along(all_polys_list)),
+      function(polygon_df, group_id){
+        mutate(polygon_df, group = group_id)
+      }
+    )
+
+  vertex_df <- 
+    bind_rows(all_polys_list) %>%
+    rename(x = V1, y = V2)
+  
+  unique_vertices <- 
+    vertex_df %>%
+    select(x, y) %>%
+    unique() %>%
+    mutate(id = seq_along(x))
+  
+  # Df containing P, PB, S, SB, where PB = SB
+  segment_boundary_df <- 
+    left_join(vertex_df, unique_vertices, by = c("x","y")) %>%
+    group_by(group) %>%
+    mutate(segment_start = id,
+           segment_end = lead(id),
+           boundary_ind = if_else(type == "island", 1, 0)) %>%
+    ungroup()
+  
+  # Have NAs in segments, fine but before we drop those we need the closed 
+  # vertex rings in x,y to calculate some centroids. 
+  hole_centroids <-
+    segment_boundary_df %>%
+    filter(type == "hole") %>%
+    group_by(group) %>%
+    summarise(centroid = list( 
+      st_centroid(st_polygon( list( as.matrix(cbind(x,y)) ) )) )) %>%
+    pull(centroid) %>%
+    map(as.matrix) %>%
+    do.call(rbind, .)
+
+  # Drop segments that contain NAs
+  segment_boundary_df <- drop_na(segment_boundary_df)
+
+  vertex_boundary_df <-
+    segment_boundary_df %>%
+    select(x,y,boundary_ind) %>%
+    unique()  
+
+  rtri_args <- 
+    list(
+      P = vertex_boundary_df %>%
+         select(x, y) %>%
+         as.matrix(),   
+      PB = pull(vertex_boundary_df, boundary_ind),
+      S = segment_boundary_df %>%
+          select(segment_start, segment_end) %>%
+          as.matrix(),
+      SB = pull(segment_boundary_df, boundary_ind),
+      H = if(is.null(hole_centroids)) NA else hole_centroids
+      )
+  
+  # Calculate the triangle area to give approx n_tris
+  if (!is.null(n_tris)){
+    bbox <- st_bbox(a_mulitpoly_sf)
+    area <- (bbox[3] - bbox[1]) * (bbox[4] - bbox[2])
+    tri_area <- area/n_tris
+  } else {
+    tri_area <- NULL
+  }
+
+
+  rt_pslg <- do.call(RTriangle::pslg, rtri_args)
+  
+  rt_triangles <- RTriangle::triangulate(rt_pslg, a = tri_area)
+}
+
+```
+
+
 # Meshing Uluru
 The akward scale of the North Carolina dataset is probably atypical of what we will be exporting to VR. Here I'll look at meshing Uluru, which should be more suitable.
 
@@ -12,8 +132,6 @@ Data sources:
 [ELVIS - Elevation information system](http://www.ga.gov.au/elvis/)
 
 ```{r}
-library(tidyverse)
-library(sf)
 uluru_bbox <- st_bbox(c(ymin = -25.36109, ymax = -25.32889, xmax = 131.0747, xmin = 131.0117), crs = st_crs("+proj=longlat +ellps=GRS80 +no_defs"))
 uluru_shape <- read_sf("/home/miles/data/uluru/GEODATA_TOPO250K_TILE_DATA/G5208/Shapefiles/Elevation")
 uluru_contours <- 
@@ -30,6 +148,8 @@ uluru_outline <-
   mutate(max_y = map_dbl(geometry, ~max(as.matrix(.)[,1]))) %>% # [,1] gives longitude
   arrange(desc(max_y)) %>% 
   filter(row_number() == 1)
+
+uluru_contours_bbox <- st_bbox(uluru_contours)
 
 uluru_outline_poly <- 
   uluru_outline %>%
@@ -71,6 +191,7 @@ uluru_elev <- raster::extract(nt_raster, uluru_trimesh$P[,1:2])
 uluru_trimesh$P <- cbind(uluru_trimesh$P, uluru_elev)
 
 library(rgl)
+rgl.clear()
   wire3d(
     tmesh3d(vertices = t(asHomogeneous(uluru_trimesh$P)), indices = array(t(uluru_trimesh$T)))
   )
@@ -80,14 +201,17 @@ The front side looks a bit whacky. Comparse this to elevation of a square sectio
 
 ```{r}
 bbox_to_multipoly <- function(a_bbox, crs){
-  mpoly <- st_sfc(st_multipolygon(
-  list(list(
-    rbind(
+  points_mat <- rbind(
       c(a_bbox$xmin, a_bbox$ymin),
       c(a_bbox$xmax, a_bbox$ymin),
       c(a_bbox$xmax, a_bbox$ymax),
       c(a_bbox$xmin, a_bbox$ymax),
       c(a_bbox$xmin, a_bbox$ymin))
+  colnames(points_mat) <- NULL
+  
+  mpoly <- st_sfc(st_multipolygon(
+  list(list(
+      points_mat  
     ))
   ))
   st_crs(mpoly) <- crs
@@ -96,12 +220,21 @@ bbox_to_multipoly <- function(a_bbox, crs){
 }
 
 uluru_extent <- 
-  bbox_to_multipoly(uluru_bbox, "+proj=longlat +ellps=GRS80 +no_defs")
+  bbox_to_multipoly(uluru_contours_bbox, "+proj=longlat +ellps=GRS80 +no_defs")
 
-ulutu_extent <-
+uluru_extent <-
   st_transform(uluru_extent, 
     ' +proj=lcc +lat_1=-30 +lat_2=-20 +lat_0=-25 +lon_0=135 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0') # same as raster
 
 uluru_box_trimesh <- sf_to_tri_mesh(uluru_extent, 5500)
+plot(uluru_box_trimesh)
 
+uluru_box_elev <- raster::extract(nt_raster, uluru_box_trimesh$P[,1:2])
+uluru_box_trimesh$P <- cbind(uluru_box_trimesh$P, uluru_box_elev)
+
+rgl.clear()
+  wire3d(
+    tmesh3d(vertices = t(asHomogeneous(uluru_box_trimesh$P)), indices = array(t(uluru_box_trimesh$T)))
+  )
+rglwidget()
 ```
