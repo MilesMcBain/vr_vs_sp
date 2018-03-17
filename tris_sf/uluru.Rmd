@@ -9,7 +9,7 @@ library(sf)
 library(raster)
 library(tidyverse)
 
-source("./helpers/sf_to_tri_mesh.R")
+source("./tris_sf/helpers/sf_to_tri_mesh.R")
 ```
 # Meshing Uluru
 The akward scale of the North Carolina dataset is probably atypical of what we will be exporting to VR. Here I'll look at meshing Uluru, which should be more suitable.
@@ -20,7 +20,7 @@ Data sources:
 
 ```{r}
 uluru_bbox <- st_bbox(c(ymin = -25.36109, ymax = -25.32889, xmax = 131.0747, xmin = 131.0117), crs = st_crs("+proj=longlat +ellps=GRS80 +no_defs"))
-uluru_shape <- read_sf("/home/miles/data/uluru/GEODATA_TOPO250K_TILE_DATA/G5208/Shapefiles/Elevation")
+uluru_shape <- read_sf("./tris_sf/data/GEODATA_TOPO250K_TILE_DATA/G5208/Shapefiles/Elevation/g5208_contours.shx")
 uluru_contours <- 
     filter(uluru_shape, as.vector(st_contains(st_as_sfc(uluru_bbox), uluru_shape$geometry, sparse = FALSE)))
 
@@ -50,7 +50,7 @@ uluru_outline_poly <-
 
 st_crs(uluru_outline_poly) <- st_crs(uluru_contours)
 uluru_outline_poly <- st_transform(uluru_outline_poly, 
-' +proj=lcc +lat_1=-30 +lat_2=-20 +lat_0=-25 +lon_0=135 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0') #same as raster below
+'+proj=lcc +lat_1=-30 +lat_2=-20 +lat_0=-25 +lon_0=135 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0') #same as raster below
 
 uluru_trimesh <- sf_to_tri_mesh(uluru_outline_poly, 5000)
 plot(uluru_trimesh)
@@ -67,7 +67,7 @@ We have two approaches:
 This has the slightly different crs. So I made it the same via `st_transform` in the previous step.
 
 ```{r}
-nt_raster <- raster("/home/miles/data/uluru/CLIP_7460862/CLIP.tif")
+nt_raster <- raster("./tris_sf/data/ELVIS_CLIP.tif")
 
 # sanity check - do these overlap?
 plot(nt_raster)
