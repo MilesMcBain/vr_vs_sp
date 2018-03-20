@@ -19,7 +19,7 @@ Data sources:
 [ELVIS - Elevation information system](http://www.ga.gov.au/elvis/)
 
 ```{r}
-uluru_bbox <- st_bbox(c(ymin = -25.36109, ymax = -25.32889, xmax = 131.0747, xmin = 131.0117), crs = st_crs("+proj=longlat +ellps=GRS80 +no_defs"))
+uluru_bbox <- st_bbox(c(ymin = -25.39521, ymax = -25.2922, xmax = 131.09814, xmin = 130.97454), crs = st_crs("+proj=longlat +ellps=WGS84"))
 uluru_shape <- read_sf("./tris_sf/data/GEODATA_TOPO250K_TILE_DATA/G5208/Shapefiles/Elevation/g5208_contours.shx")
 uluru_contours <- 
     filter(uluru_shape, as.vector(st_contains(st_as_sfc(uluru_bbox), uluru_shape$geometry, sparse = FALSE)))
